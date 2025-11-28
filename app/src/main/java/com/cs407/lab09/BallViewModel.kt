@@ -10,62 +10,62 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
 class BallViewModel : ViewModel() {
-
     private var ball: Ball? = null
     private var lastTimestamp: Long = 0L
-
-    // Expose the ball's position as a StateFlow
     private val _ballPosition = MutableStateFlow(Offset.Zero)
     val ballPosition: StateFlow<Offset> = _ballPosition.asStateFlow()
 
-    /**
-     * Called by the UI when the game field's size is known.
-     */
+    // 임계값 추가 (0.5 이하의 기울기는 무시)
+    private val THRESHOLD = 0.5f
+
     fun initBall(fieldWidth: Float, fieldHeight: Float, ballSizePx: Float) {
         if (ball == null) {
-            // TODO: Initialize the ball instance
-            // ball = Ball(...)
-
-            // TODO: Update the StateFlow with the initial position
-            // _ballPosition.value = Offset(ball!!.posX, ball!!.posY)
+            ball = Ball(fieldWidth, fieldHeight, ballSizePx)
+            _ballPosition.value = Offset(ball!!.posX, ball!!.posY)
         }
     }
 
-    /**
-     * Called by the SensorEventListener in the UI.
-     */
     fun onSensorDataChanged(event: SensorEvent) {
-        // Ensure ball is initialized
         val currentBall = ball ?: return
-
         if (event.sensor.type == Sensor.TYPE_GRAVITY) {
             if (lastTimestamp != 0L) {
-                // TODO: Calculate the time difference (dT) in seconds
-                // Hint: event.timestamp is in nanoseconds
-                // val NS2S = 1.0f / 1000000000.0f
-                // val dT = ...
+                val NS2S = 1f / 1_000_000_000f
+                val dT = (event.timestamp - lastTimestamp) * NS2S
 
-                // TODO: Update the ball's position and velocity
-                // Hint: The sensor's x and y-axis are inverted
-                // currentBall.updatePositionAndVelocity(xAcc = ..., yAcc = ..., dT = ...)
+                // 센서 값에 임계값 적용
+                var xAcc = -event.values[0]
+                var yAcc = event.values[1]
 
-                // TODO: Update the StateFlow to notify the UI
-                // _ballPosition.update { Offset(currentBall.posX, currentBall.posY) }
+                // 임계값보다 작은 움직임은 0으로 처리
+                if (kotlin.math.abs(xAcc) < THRESHOLD) {
+                    xAcc = 0f
+                }
+                if (kotlin.math.abs(yAcc) < THRESHOLD) {
+                    yAcc = 0f
+                }
+
+                // 스케일 팩터 (필요시 조정)
+                val scaleFactor = 100f
+                xAcc *= scaleFactor
+                yAcc *= scaleFactor
+
+                // Update ball physics
+                currentBall.updatePositionAndVelocity(xAcc, yAcc, dT)
+
+                // Update UI
+                _ballPosition.update {
+                    Offset(currentBall.posX, currentBall.posY)
+                }
             }
-
-            // TODO: Update the lastTimestamp
-            // lastTimestamp = ...
+            lastTimestamp = event.timestamp
         }
     }
 
     fun reset() {
-        // TODO: Reset the ball's state
-        // ball?.reset()
-
-        // TODO: Update the StateFlow with the reset position
-        // ball?.let { ... }
-
-        // TODO: Reset the lastTimestamp
-        // lastTimestamp = 0L
+        ball?.reset()
+        ball?.let {
+            _ballPosition.value = Offset(it.posX, it.posY)
+        }
+        lastTimestamp = 0L
     }
 }
